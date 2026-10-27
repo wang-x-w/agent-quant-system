@@ -1,0 +1,52 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agent-quant-system"
+version = "0.1.0"
+description = "Agent-assisted US equities research, risk, and paper-trading system"
+readme = "README.md"
+requires-python = ">=3.12,<3.15"
+license = { text = "MIT" }
+authors = [{ name = "Hello-Agents contributors" }]
+dependencies = [
+    "pydantic>=2.10,<3",
+    "pydantic-settings>=2.7,<3",
+    "typer>=0.15,<1",
+]
+
+[project.optional-dependencies]
+monitor = [
+    "ib_async>=2,<3",
+    "exchange-calendars>=4.5,<5",
+]
+backtest = [
+    "backtrader==1.9.78.123",
+    "exchange-calendars>=4.5,<5",
+    "matplotlib>=3.9,<4",
+    "numpy>=2,<3",
+    "pandas>=2.2,<3",
+]
+dev = [
+    "pytest>=8.3,<9",
+    "pytest-cov>=6,<7",
+    "ruff>=0.9,<1",
+]
+
+[project.scripts]
+agent-quant = "agent_quant_system.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agent_quant_system"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]

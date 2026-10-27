@@ -1,0 +1,1 @@
+nautilus-trader[ib]>=1.231,<2
