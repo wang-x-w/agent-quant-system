@@ -50,14 +50,31 @@ uv run agent-quant demo --ticker AAPL --confidence 0.30
 
 ## 启用 TradingAgents
 
+在 Linux / Bash 中执行准备脚本，无需先激活虚拟环境：
+
 ```bash
-uv sync --extra dev
-uv pip install -r requirements-agent.txt
-cp .env.example .env
-# 在 .env 中设置模型提供商和对应 API key
-# AQS_RESEARCH_PROVIDER=tradingagents
-uv run agent-quant analyze --ticker NVDA --price 180 --cash 25000
+cd /home/voyah/workspace/free/agent-quant-system
+bash setup_research.sh
 ```
+
+脚本自动定位项目目录，检查 Git，查找或通过当前用户的 pip 安装 uv；缺少虚拟环境时通过 uv 安装 Python 3.12 并创建 `.venv`。该环境安装锁定的项目依赖及 dev、backtest、monitor 扩展。投研使用独立的 `.venv-research`，联合安装本工程的 monitor 扩展和 `requirements-agent.txt` 中固定版本的 TradingAgents，随后检查两个环境的依赖兼容性。
+
+独立环境是必要的：TradingAgents v0.7.0 要求 `pandas>=3.0.6`，现有回测环境要求 `pandas<3`，不能直接混装。项目代码仍是同一个 Python 包，两套环境均使用当前源码；投研环境不安装 backtest 扩展。已有不兼容的虚拟环境不会被自动删除；若系统没有 Git、Python/pip 或禁止用户级安装，按错误提示准备这些系统工具后重试，脚本不会使用 sudo。
+
+脚本仅在不存在时从模板创建 `.env`，将文件权限收紧到 `600`，并把缺失或 `static` 的研究提供者设为 `tradingagents`。已有密钥、模型选择、账户及交易参数保持不变；不会开启任何交易开关，不会安装尚未使用的 NautilusTrader，不会请求模型或连接券商。
+
+首次运行通常以退出码 `2` 提示还需配置密钥。这表示安装阶段完成但配置未就绪，不是安装失败。在本机编辑 `.env`，填写 `OPENAI_API_KEY`；使用其他模型提供商时设置其对应密钥和 `AQS_LLM_PROVIDER`、`AQS_QUICK_THINK_LLM`、`AQS_DEEP_THINK_LLM`。不要把密钥发到聊天或提交到 Git。
+
+配置完成后运行只读检查，再开始分析：
+
+```bash
+bash setup_research.sh --check
+uv run --no-project --env-file .env .venv-research/bin/agent-quant analyze --ticker AAPL --price 200 --cash 10000
+```
+
+`--check` 不安装依赖、不创建或修改配置；退出码 `0` 表示本地检查通过，`1` 表示准备过程出错，`2` 表示配置、凭据或依赖仍需处理。检查仅确认密钥非空，不验证其有效性、模型权限或行情可用性。Shell 中已导出的同名变量优先于配置文件，旧值可能需要先 `unset`。上述命令通过 `--env-file .env` 加载模型密钥，无需手工 `source`；`--no-project` 避免同步主工程环境，显式执行投研环境的 CLI。若 uv 未加入 PATH，可使用准备脚本最后输出的完整路径命令。
+
+`200` 只是示例价格，不是实时行情。运行 `analyze` 会消耗模型额度，但不依赖 IBKR，只进入本地演示网关。
 
 传给 `--price` 的值必须来自你信任的行情快照；系统不会采用 LLM 文本中的价格下单。TradingAgents 的建议仍只进入本地演示网关。上游不提供置信度时按 `0` 处理，不默认赋予下单资格；评级必须精确匹配，`REVIEW` 不交易。
 
@@ -191,10 +208,9 @@ uv run --extra monitor agent-quant monitor --mode intraday --execute
 保留原 `analyze` 本地演示入口，新增 `research`：从 IBKR 只读连接取得完整账户快照后断开券商连接，再调用 TradingAgents，写出独立 JSON 报告，**从不提交订单**。
 
 ```bash
-uv sync --extra dev --extra backtest --extra monitor --no-progress
-uv pip install -r requirements-agent.txt
-# 在 .env 配置 AQS_RESEARCH_PROVIDER=tradingagents 和模型 API key
-uv run --no-sync agent-quant research --ticker SPY --output reports/SPY-research.json
+bash setup_research.sh
+# 在 .env 配置模型密钥、模拟账户 ID 和 Gateway/TWS 模拟端口
+uv run --no-project --env-file .env .venv-research/bin/agent-quant research --ticker SPY --output reports/SPY-research.json
 ```
 
 研究连接使用交易 client ID 加 100，需确保该 ID 未被其他客户端占用；报告默认不覆盖已存在文件。LLM 运行不占用交易循环，报告不自动送入日内执行，也不赋予未知置信度下单资格。模型依赖、API 权限与外部调用需要自行配置；离线测试只验证接口契约，不证明外部模型可用。
